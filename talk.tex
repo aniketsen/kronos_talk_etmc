@@ -1,0 +1,162 @@
+\geometry{paperwidth=200mm,paperheight=112.5mm}
+\usepackage[utf8x]{inputenc}
+\usepackage{amsmath,amsfonts,amssymb}
+\usefonttheme{professionalfonts}
+\usepackage{fontspec}
+\setsansfont{URW Gothic}
+\usecolortheme{default}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{hyperref}
+\hypersetup{                                                                                                                                                                                                                   
+  colorlinks = true,                                                                                                                                                                                                           
+  urlcolor = MidnightBlue,                                                                                                                                                                                                     
+  linkcolor = black                                                                                                                                                                                                            
+}
+\usepackage{caption}
+\usepackage{nicefrac}
+\usepackage{pifont}
+\usepackage{minted}
+\setminted{
+  bgcolor = SkyBlue!15
+}
+%\usepackage{wrapfig}
+%\usepackage{cutwin}
+% for bkblock
+\usepackage[most]{tcolorbox}
+
+\usepackage[detect-none]{siunitx}
+\sisetup{range-phrase = \text{--}}
+
+\include{commands}
+
+%compact itemize, perfect for talks
+\setlength{\leftmargin}{0pt}
+\setlength{\leftmargini}{0.4cm}
+\setlength{\leftmarginii}{0.2cm}
+
+\usefonttheme{professionalfonts} 
+
+\newcommand{\roundbox}[1]{%
+\noindent\begin{tikzpicture}%
+  \draw node[draw=lightgray,fill=white,rounded corners,inner sep=1ex] {%
+  #1
+  };%
+\end{tikzpicture}%
+}%
+
+\definecolor{DarkBlue}{HTML}{002e77}
+\definecolor{LightBlue}{HTML}{6495ed}
+\definecolor{MidGreen}{HTML}{228b22}
+\definecolor{DarkGreen}{HTML}{006400}
+\definecolor{HotPink}{HTML}{dc143c}
+\definecolor{LightPeach}{HTML}{ff7f50}
+\definecolor{LightOrange}{HTML}{ffa500}
+\definecolor{LighterOrange}{HTML}{ffcf9d}    
+\definecolor{RedBrown}{HTML}{8b3e2f}
+\definecolor{DarkRed}{HTML}{8b3e2f}
+
+\usetheme{Boadilla}
+\usecolortheme[named=DarkBlue]{structure}
+\useinnertheme{rounded}
+
+\setbeamertemplate{navigation symbols}{}
+
+\graphicspath{{graphics/}}
+
+\title[Lorem ipsum]{Lorem ipsum dolor sit amet, consectetur adipiscing elit}
+\author[T.~Speaker]{\underline{The Speaker} \\ \vspace{0.2cm} in collaboration with \\ \vspace{0.2cm} \centering Co.~Author, Co.~Writer,Co.~Contributor, Co.~Laborator, Co.~Conspirator}
+\institute[HISKP]{HISKP (Theory), Rheinische Friedrich-Wilhelms-Universit{\"a}t Bonn}
+\titlegraphic{\roundbox{\includegraphics[height=2.4cm]{graphics/uni_bonn_hiskp_FZJ_numeriqs_ETMC}}}
+\date[CC'2x, Location, State, 202x]{\small Cool Conference, 202x, Location, State}
+\subject{subject}
+\keywords{keywords}
+
+
+\begin{document}
+
+\begin{frame}
+  \titlepage{}
+\end{frame}
+
+% \begin{frame}{Technical Overview}
+%   Test
+% \end{frame}
+
+\begin{frame}{Overview}
+  This is the first slide.
+  \begin{columns}
+    \column{0.4\textwidth}
+      \begin{itemize}
+        \item the audience laughing
+        \item i have made a fool of us
+        \item shame lasts forever
+      \end{itemize}
+    \column{0.6\textwidth}
+      \centering
+      \includegraphics[width=0.5\textwidth]{Logo_ETMC_RGB}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{This is the second slide}{with a subtitle}
+  \begin{itemize}
+    \item Just
+    \item some
+    \item bullets
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{This is the third slide}
+A slide with two columns, one without and one with a block
+\begin{columns}
+  \column{0.4\textwidth}
+    \begin{itemize}
+      \item item1
+      \item item2
+    \end{itemize}
+  \column{0.6\textwidth}
+  \begin{block}{never forget the title, {\tiny even if you it leave empty!} }
+    \begin{itemize}
+      \item{Maybe we have a reference for this? \\ \hfill \textcolor{blue}{\footnotesize [Some, Really, Cool, People, Major Journal, (19xx)]}}
+      \vspace{0.2cm}
+      \item{A comment to the point above.}
+    \end{itemize}
+  \end{block}
+
+\end{columns}
+\end{frame}
+
+\begin{frame}{This is the fourth slide}
+  \begin{bkblock}{This is a bkblock}
+    And some content for this block.
+  \end{bkblock}
+  \begin{bkalertblock}{This is a bkalertblock}
+    And some content for this block.
+  \end{bkalertblock}
+  \begin{bkexampleblock}{This is a bkexampleblock}
+    And some content for this block.
+  \end{bkexampleblock}
+\end{frame}
+
+\begin{frame}[fragile]{Some code goes a long way}
+  \begin{columns}
+    \column{0.6\linewidth}
+      \begin{minted}{c++}
+#include <stdio.h>
+#include <omp.h>
+
+int main(void){
+  printf("Hello from the main thread.\n");
+#pragma omp parallel
+  printf("Hello from thread %d of %d.\n",
+         omp_get_thread_num(), 
+         omp_get_num_threads());
+  printf("Hello from main thread.\n");
+}
+      \end{minted}
+    \column{0.4\linewidth}
+      This describes what the code actually does!
+  \end{columns}
+\end{frame}
+
+\end{document}
