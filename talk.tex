@@ -185,28 +185,103 @@
       \end{center}
     \column{0.5\linewidth}
       \begin{itemize}
-        \item<1-> $U(x)_\mu^{ab} \rightarrow$ \mintinline{c++}{complex[x][mu][a][b]}
+        \item<1-> $U^{ab}_\mu(x) \rightarrow$ \mintinline{c++}{complex[x][mu][a][b]}
         \vspace{0.2cm}
-        \item<1-> $\psi(x)^{\sigma b} \rightarrow$ \mintinline{c++}{complex[x][rho][b]}
+        \item<1-> $\psi^{\sigma b}(x) \rightarrow$ \mintinline{c++}{complex[x][sigma][b]}
         \vspace{0.2cm}
         \begin{itemize}
-          \item Consecutive lattice sites $x$ separated by e.g. \mintinline{c++}{4 * sizeof(su3)}
+          \item Consecutive lattice sites $x$ separated by e.g. \mintinline{c++}{4 * sizeof(su3)} or \mintinline{c++}{sizeof(spinor)} in memory.
         \end{itemize}
         \vspace{0.6cm}
-        \item<3-> \emph{Array of Struct} layout works well on CPU due to cache hierarchy and small SIMD loss factor.
+        \item<3-> \emph{Array of Struct} layout works well on \textbf{CPU} due to cache hierarchy and small SIMD loss factor.
         \vspace{0.6cm}
-        \item<4-> On GPU would like to have $x$ running fastest:
+        \item<4-> On \textbf{GPU} would like to have $x$ running fastest:
         \vspace{0.2cm}
         \begin{itemize}
           \item \emph{Struct of Array} layout.
           \vspace{0.3cm}
-          \item In C notation: $\psi(x)^{\sigma b} \rightarrow$ \mintinline{c++}{complex[rho][b][x]}
+          \item In C notation: $\psi(x)^{\sigma b} \rightarrow$ \mintinline{c++}{complex[b][sigma][x]}
         \end{itemize}
       \end{itemize}
   \end{columns}
+  \vspace{0.4cm}
+  \begin{itemize}
+    \item<5-> Grid: virtual node vectorisation (site fusion) $\rightarrow$ SIMD length = multiple of thread team size
+    \begin{itemize}
+      \item same (complicated) layout gives very good performance on CPU and GPU, but need to pack / unpack
+    \end{itemize}
+    \vspace{0.4cm}
+    \item<6-> Alernative: \textbf{switch memory order of indices when switching from CPU to GPU}
+    \begin{itemize}
+      \item generally obtain reasonably good performance on both 
+    \end{itemize}
+  \end{itemize}
 \end{frame}
 
+\begin{frame}{Slicing Multi-dimensional Iteration Spaces}
+  \only<1>{
+    \begin{center}
+      \includegraphics[height=0.75\paperheight]{graphics/regular_mesh_halo_exchange_2c}\\
+      \textbf{Let's try to overlap communication and computation for a next-neighbour stencil.}
+    \end{center}
+  }  
+  \only<2>{
+    \begin{center}
+      \includegraphics[height=0.7\pageheight]{graphics/halo_exchange_algo_1}\\
+      \textbf{Domain-decompose a 2D lattice and allocate a halo of depth 1.}
+    \end{center}
+  }
+  \only<3>{
+    \begin{center}
+      \includegraphics[height=0.75\pageheight]{graphics/halo_exchange_algo_2}\\
+      \textbf{Start non-blocking communication.}
+    \end{center}
+  }
+  \only<4>{
+    \begin{center}
+      \includegraphics[height=0.75\pageheight]{graphics/halo_exchange_algo_3}\\
+      \textbf{Apply stencil on interior (bulk) of the volume:} $\rightarrow$ \mintinline{c++}{x, y} $\in [1,N_{x,y}-2]$
+    \end{center}
+  }
+  \only<5>{
+    \begin{center}
+      \includegraphics[height=0.7\pageheight]{graphics/halo_exchange_algo_4}\\
+      \vspace{0.3cm}
+      \begin{columns} 
+        \column{0.4\linewidth}
+          \hfill \textbf{Apply stencil on surface:}
+        \column{0.6\linewidth}
+          $\rightarrow$ \mintinline{c++}{x} $\in 0,N_x-1$; \mintinline{c++}{y} $\in [0,N_y-1]$\\
+          $\rightarrow$ \mintinline{c++}{y} $\in 0,N_y-1$; \mintinline{c++}{x} $\in [1,N_x-2]$
+      \end{columns}
+    \end{center}
+  }
+\end{frame}
 
+\begin{frame}[fragile]{Slicing Multi-dimensional Iteration Spaces}{API}
+    \begin{itemize}
+      \item<1-> Would like to have a parallel launch mechanism which can easily run over slices of the multi-dimensional iteration space, for example in 4D.
+      \vspace{0.6cm}
+    \item<2-> For bulk:\\ 
+      \begin{minted}{c++}
+  int begin[4] = {1,1,1,1};
+  int end[4] = {N1-1,N2-1,N3-1,N4-1}; 
+  parallel_for(begin,end,stencil); // iterates over 1 to Nx-2
+      \end{minted}
+      \item<3-> For surfaces, e.g. in +3 direction: 
+      \begin{minted}{c++}
+  int begin[4] = {0,0,N3-1,0};
+  int end[4] = {N1,N2,N3,N4};
+  parallel_for(begin,end,stencil);
+      \end{minted}
+      \vspace{-0.5cm}
+      \begin{itemize}
+        \item Loop over the 8 directions: surface kernel launched as soon as respective comms is completed.
+      \end{itemize}
+      \vspace{0.6cm}
+      \item<4-> \textbf{Launch mechanism must map iteration space well to CPU threads and blocks of GPU thread teams.}
+    \end{itemize}
+\end{frame}
 
 \begin{frame}{Kokkos}
   The Kokkos C++ Performance Portability Ecosystem is a production
