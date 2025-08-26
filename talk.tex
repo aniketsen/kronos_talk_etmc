@@ -171,22 +171,6 @@ Kokkos::MDRangePolicy<
   \end{minted}
   \end{columns}
 
-%   \begin{itemize}
-%     \item \verb|RangePolicy| : defines an execution policy for a 1D iteration space
-%   \end{itemize}
-
-%   \begin{minted}{c++}
-% Kokkos::RangePolicy(execution_space, begin, end, chunk_size);
-%   \end{minted}
-
-%   \begin{itemize}
-%     \item \verb|MDRangePolcy| : defines an execution policy for a multidimensional iteration space
-%   \end{itemize}
-
-%   \begin{minted}{c++}
-% Kokkos::MDRangePolicy<Kokkos::Rank<N>>(execution_space, begin, end, tiling);
-%   \end{minted}
-  
   \begin{bkblock}{Parameters:}
     \begin{itemize}
       \item The iteration space starts at \verb|begin| and goes to \verb|end| with open interval.
@@ -341,6 +325,281 @@ Kokkos::parallel_for(
 Kokkos::fence();
       \end{minted}
   \end{columns}
+
+  This works as long as the "+" and "=" operators for the intrinsic site type is well defined
+\end{frame}
+
+\begin{frame}[fragile]{Kronos: Site types}
+  To use Kokkos views as lattice fields, it is useful to define our own site types.\\
+
+  For example
+  \begin{block}{ColourMatrix}
+    Complex valued $SU(N)$ matrix\\
+    we can use Kokkos Array structure to
+    store the matrix
+  \end{block}
+
+
+  \begin{minted}{c++}
+template <typename RT, idx_t Ncol>
+struct ColourMatrix : public Array<Array<cplx_t<RT>, size_t(Ncol)>, size_t(Ncol)>;
+  \end{minted}
+  
+  And define an accessor \verb|elem| as
+
+  \begin{minted}{c++}
+KOKKOS_FORCEINLINE_FUNCTION
+const auto &
+elem(idx_t c1, idx_t c2) const noexcept
+{
+  return (*this)[c1][c2];
+}
+  \end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Kronos: Field structure}{ScalarField}
+  we define wrapper classes around the Kokkos Views to
+  define fields on the lattice\\
+
+  \begin{block}{ScalarField}
+    A single site type object resides at
+    every lattice site
+  \end{block}
+
+  \begin{minted}{c++}
+template <ValidSiteType SiteType, typename Layout,
+  idx_t Ndim, typename MemorySpace 
+    = Kokkos::DefaultExecutionSpace::memory_space>
+class ScalarField;
+  \end{minted}
+
+  \begin{itemize}
+    \item the dynamic extent corresponds to the lattice sites in a lexicographic ordering
+    \item \verb|Ndim| defines the dimensionality of the lattice
+  \end{itemize}
+
+  example:
+
+  \begin{minted}{c++}
+template <typename RT, idx_t Ns, idx_t Nc>
+using SpinorField4D = ScalarField<Spinor<RT, Ns, Nc>, cplx_t<RT> *[Ns][Nc], 4>;
+  \end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Kronos: Field structure}{VectorField}
+  we define wrapper classes around the Kokkos Views to
+  define fields on the lattice\\
+
+  \begin{block}{VectorField}
+    A vector of site type object at
+    every lattice site
+  \end{block}
+
+  \begin{minted}{c++}
+template <ValidSiteType SiteType, typename Layout,
+  idx_t Ndim, idx_t Vdim,
+  typename MemorySpace 
+    = Kokkos::DefaultExecutionSpace::memory_space>
+class VectorField;
+  \end{minted}
+
+  \begin{itemize}
+    \item \verb|Vdim| defines the length of the vector at each site
+  \end{itemize}
+
+  example:
+
+  \begin{minted}{c++}
+template <typename RT, idx_t Nc>
+using GaugeField4D = VectorField<ColourMatrix<RT, Nc>, cplx_t<RT> *[4][Nc][Nc], 4, 4>;
+  \end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Kronos: Site reference}
+  
+  \begin{bkalertblock}{How do we extract the site type structure from the View without copies?}
+    use a reference wrapper
+  \end{bkalertblock}
+
+  For example, in the case of the gauge field, we define a
+  \verb|SiteGaugeLink| reference
+
+  \begin{minted}{c++}
+template <ValidGaugeFieldType gauge_t, idx_t Ncol>
+class SiteGaugeLink {
+ private:
+  idx_t m_i;
+  idx_t m_mu;
+  const gauge_t &m_f;
+}
+  \end{minted}
+
+  which accesses the $SU(N)$ matrix for the gauge field \verb|m_f| at lattice index
+  \verb|m_i| and vector index \verb|m_mu|\\
+
+  Accordingly, the accessor \verb|elem| takes the form
+
+  \begin{minted}{c++}
+KOKKOS_FORCEINLINE_FUNCTION
+auto &
+elem(idx_t c1, idx_t c2) const noexcept
+{
+  return m_f(m_i, m_mu, c1, c2);
+}
+  \end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Kronos: Concepts}
+
+  \begin{bkalertblock}{How do we ensure correct combination of site types and field types in different operators and functions?}
+    use concepts (since C++20)
+  \end{bkalertblock}
+
+  For example, a valid colourmatrix type must satisfy the following
+
+  \begin{minted}{c++}
+template <typename T>
+concept ValidColourMatrixType = requires {
+  typename T::is_colour_matrix;                          // unambiguous type trait
+  typename T::value_type;                                // type of matrix elements
+  typename T::real_t;                                    // which (float point) type
+  requires std::is_same_v<decltype(T::Nc), const idx_t>; // number of colours
+} && requires(T t) { 
+    t.elem(std::declval<int>(), std::declval<int>()); 
+  }; // an elem() to access the matrix elements
+  \end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Kronos: Opeator overloads on site types}
+
+  we can define operator overloads between site types.\\
+
+  For example a product of colourmatrix and spinor can be defined as
+
+  \begin{minted}{c++}
+template <
+  ValidColourMatrixType LHS,
+  ValidSpinorType RHS,
+  typename std::enable_if_t<LHS::Nc == RHS::Nc, int> = 0>
+KOKKOS_FORCEINLINE_FUNCTION auto
+operator*(const LHS &lhs, const RHS &rhs) noexcept { ... }
+  \end{minted}
+
+  this works for any combination of actual site types and reference types
+
+\end{frame}
+
+\begin{frame}[fragile]{Kronos: A simple kernel}
+
+  we can write a simple kernel to add two Spinor fields as\\
+
+  \begin{minted}{c++}
+template <ValidSpinorFieldType spinor_t>
+void add_spinor(spinor_t &c, const spinor_t &a, const spinor_t &b) {
+  Kokkos::parallel_for("add_spinor", a.m_n,
+    KOKKOS_LAMBDA(idx_t i) {
+      auto A = a.site(i);
+      auto B = b.site(i);
+      auto C = c.site(i);
+      C = A + B;
+    }
+  );
+  Kokkos::fence();
+}
+  \end{minted}
+
+\end{frame}
+
+\begin{frame}{Kronos: Tuner}
+
+  Kokkos manages block sizes in the parallel dispatch via chunk size and tiling sizes\\
+
+  performance can be severely improved by finding an optimal parameter size \\
+
+  \begin{columns}
+    \column{0.4\textwidth}
+      \begin{block}{tune\_and\_launch}
+        \begin{itemize}
+          \item a wrapper around the Kokkos parallel dispatch
+          \item benchmarks a given kernel for possible chunk and tiling sizes
+          \item the best parameter for each kernel is cached
+          \item in case of MPI, the tuning is distributed between diferent processes
+        \end{itemize}
+      \end{block}
+    \column{0.55\textwidth}
+      \includegraphics[width=\textwidth]{figs/tiling_distr_L_boxplot_v2.pdf}
+  \end{columns}
+
+\end{frame}
+
+\begin{frame}{Benchmark: Linear algebra kernels}{cpu}
+
+  \begin{itemize}
+    \item Benchmark on a single node of the Juwels Booster
+    \item AMD EPYC 7402 cpu, 48 threads, no SMT
+    \item compiled with GCC 13.3
+  \end{itemize}
+
+  \begin{columns}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/comparison_grid_epyc.pdf}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/comparison_grid_epyc_zoomed.pdf}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Benchmark: Linear algebra kernels}{gpu}
+
+  \begin{itemize}
+    \item Benchmark on a single gpu in a single node of the Juwels Booster
+    \item NVIDIA A100 40 GB
+    \item compiled with NVCC 12.6
+  \end{itemize}
+
+  \begin{columns}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/comparison_grid_a100.pdf}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/comparison_grid_a100_zoomed.pdf}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Towards Actual Physics}{current status}
+
+  \begin{bkblock}{LEMON}
+    \begin{itemize}
+      \item a functional lemon interface to read and write gauges
+    \end{itemize}
+  \end{bkblock}
+
+  \begin{bkalertblock}{QUDA}
+    \begin{itemize}
+      \item a working interface to QUDA
+      \item transfer gauge and spinor fields between Kronos and QUDA
+      \item gauge and propagator smearing
+      \item a solver interface (only CGNE at the moment)
+      \item Dslash interface to QUDA
+    \end{itemize}
+  \end{bkalertblock}
+
+  \begin{bkexampleblock}{Dslash}
+    \begin{itemize}
+      \item a working Wilson Dslash implementation in Kronos (only M)
+      \item crosschecked against QUDA for correctness
+    \end{itemize}
+  \end{bkexampleblock}
+
+  \begin{bkblock}{Correlator}
+    \begin{itemize}
+      \item a simple meson 2 point correlator for different gamma matrices
+    \end{itemize}
+  \end{bkblock}
+
 \end{frame}
 
 \end{document}
