@@ -787,4 +787,76 @@ void add_spinor(spinor_t &c, const spinor_t &a, const spinor_t &b) {
 
 \end{frame}
 
+\begin{frame}[fragile]{Wilson Dslash}
+  
+  \begin{minted}{c++}
+
+  auto U = m_gf.sitevector();
+  auto in = m_sf_in.site();
+  auto out = m_sf_out.site(i);
+
+  typename sf_t::site_t tmp = 0.0;
+  
+  ...
+
+  tmp += ImGamma(U(i, mu) * in(ip[mu]), DslashGammas<Ns>(mu));
+  tmp += IpGamma(conj(U(im[mu], mu)) * in(im[mu]), DslashGammas<Ns>(mu));
+
+  ...
+
+  out = in(i) - ( m_kappa * tmp );
+
+  \end{minted}
+
+\end{frame}
+
+\begin{frame}{Benchmark: Dslash}
+
+  \begin{itemize}
+    \item Benchmark on a single A100 80 GB
+    \item compare mean kernel times to QUDA
+  \end{itemize}
+
+  \begin{columns}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/Wilson_Dirac_bw_A100.pdf}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/Wilson_Dirac_time_A100.pdf}
+  \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{Meson 2-point correlator}
+
+  \begin{minted}{c++}
+sum += gamma_val<RT>(gamma_type, alpha) *
+       gamma_val<RT>(gamma_type, beta) *
+       m_prop1(idx, gamma_mu(gamma_type, alpha), beta, a, b) *
+       Kokkos::conj(m_prop2(idx, alpha, gamma_mu(gamma_type, beta), a, b));
+  \end{minted}
+
+  \begin{columns}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/meson_2pt_bw_A100.pdf}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/meson_2pt_bw_EPYC.pdf}
+  \end{columns}
+
+\end{frame}
+
+\begin{frame}{some more benchmarks}
+
+  \begin{columns}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/sun_spinor_benchmark_epyc.pdf}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/sun_spinor_benchmark_a100.pdf}
+  \end{columns}
+
+\end{frame}
+
+\begin{frame}{Outlook}
+
+  
+\end{frame}
+
 \end{document}
