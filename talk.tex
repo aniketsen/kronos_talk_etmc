@@ -98,6 +98,116 @@
   AS: Bartek please make this slide more interesting
 \end{frame}
 
+\begin{frame}{CPUs vs GPUs}
+  \centering
+  \includegraphics[height=0.8\paperheight]{graphics/cpuVSgpu.png}\\
+  \footnotesize{\href{https://www.frontiersin.org/journals/physics/articles/10.3389/fphy.2025.1542474/full}{[E.~Suarez, J.~Amaya, O.~Freyermuth, M.~Girone, \textbf{BK}, S.~Pfalzner, \emph{Energy efficiency trends in HPC: what high-energy and astrophycisists need to know}, Front.in Phys. 13 (2025) 1542474]}}
+\end{frame}                                                    
+
+\begin{frame}{Data Layout Matters}
+  \begin{itemize}
+    \item Consider an $8 \times 8$ lattice of scalar values.
+    \vspace{0.1cm}
+    \item Could lay out in memory as \mintinline{c++}{real[y][x]}, or when linearised, \mintinline{c++}{real[i]}, where \mintinline{c++}{i} $\in [0,63]$.
+    \vspace{0.1cm}
+    \item Iterate over this on CPU and GPU in some kind of \mintinline{c++}{parallel for}, spltting the work across the available threads.
+  \end{itemize}
+  \begin{columns}
+    \column{0.5\linewidth}
+      \only<1>{
+        \begin{center}
+          \includegraphics[height=0.6\paperheight]{graphics/grid}
+        \end{center}
+      }
+      \only<2>{
+        \begin{center}
+          \includegraphics[height=0.6\paperheight]{graphics/grid_cpu}
+        \end{center}
+      }
+      \only<3>{
+        \begin{itemize}
+          \item On GPU, threads are unit of vectorisation AND parallelisation.
+          \vspace{0.6cm}
+          \item Work is scheduled in blocks which must (ideally) be multiple of \emph{team} size.
+            \begin{itemize}
+              \item NVIDIA $\rightarrow$ team = warp, size 32
+              \item AMD $\rightarrow$ team = wavefront, size 64
+            \end{itemize}
+          \vspace{0.6cm}
+          \item Threads within team should access neighbouring memory locations (\emph{coalesced access}).
+          \begin{itemize}
+            \item Performance loss factor up to $\approx 100$ if not done! 
+          \end{itemize}
+        \end{itemize}
+      }
+    \column{0.5\linewidth}
+      \only<2>{
+        \begin{itemize}
+          \item On CPU, ideally each thread (tX) processes a chunk of contiguous memory.
+          \vspace{0.6cm}
+          \item Threads operate on chunks of memory as far apart as possible.
+          \vspace{0.6cm}
+          \item If possible, compiler exploits SIMD unit to process multiple values in parallel per clock cycle.
+          \begin{itemize}
+            \item For problems with low arithmetic intensity (like lattice QCD), loss factor small if SIMD not optimally used.
+          \end{itemize}
+        \end{itemize}
+      }
+      \only<3>{
+        \begin{center}
+          \includegraphics[height=0.65\paperheight]{graphics/grid_gpu}
+        \end{center}
+      }
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Data Layout Matters}
+  \begin{columns}
+    \column{0.5\linewidth}
+      \begin{center}
+        \includegraphics[height=0.6\paperheight]{graphics/grid_cpu}
+      \end{center}
+    \column{0.5\linewidth}
+      \begin{center}
+        \includegraphics[height=0.65\paperheight]{graphics/grid_gpu}
+      \end{center}
+  \end{columns}
+  \begin{itemize}
+    \item Without internal structure this is more or less trivial.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Data Layout Matters}
+  \begin{columns}
+    \column{0.45\linewidth}
+      \begin{center}
+        \includegraphics[width=0.85\linewidth]{graphics/grid_su3_spinor}
+      \end{center}
+    \column{0.5\linewidth}
+      \begin{itemize}
+        \item<1-> $U(x)_\mu^{ab} \rightarrow$ \mintinline{c++}{complex[x][mu][a][b]}
+        \vspace{0.2cm}
+        \item<1-> $\psi(x)^{\sigma b} \rightarrow$ \mintinline{c++}{complex[x][rho][b]}
+        \vspace{0.2cm}
+        \begin{itemize}
+          \item Consecutive lattice sites $x$ separated by e.g. \mintinline{c++}{4 * sizeof(su3)}
+        \end{itemize}
+        \vspace{0.6cm}
+        \item<3-> \emph{Array of Struct} layout works well on CPU due to cache hierarchy and small SIMD loss factor.
+        \vspace{0.6cm}
+        \item<4-> On GPU would like to have $x$ running fastest:
+        \vspace{0.2cm}
+        \begin{itemize}
+          \item \emph{Struct of Array} layout.
+          \vspace{0.3cm}
+          \item In C notation: $\psi(x)^{\sigma b} \rightarrow$ \mintinline{c++}{complex[rho][b][x]}
+        \end{itemize}
+      \end{itemize}
+  \end{columns}
+\end{frame}
+
+
+
 \begin{frame}{Kokkos}
   The Kokkos C++ Performance Portability Ecosystem is a production
   level solution for writing modern C++ applications in a hardware agnostic way.\\
