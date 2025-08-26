@@ -65,7 +65,7 @@
 \graphicspath{{graphics/}}
 
 \title[Kronos]{Kronos : A lattice QCD library accelerated with Kokkos}
-\author[A. Sen]{Aniket Sen, Bartosz Kostrzewa  \\ \vspace{0.2cm} in collaboration with \\ \vspace{0.2cm} \centering Travis Whyte, Giovanni Pederiva, Simon Schlepphorst, Eric Gregory, Stefan Krieg}
+\author[A. Sen, B. Kostrzewa]{Aniket Sen, Bartosz Kostrzewa  \\ \vspace{0.2cm} in collaboration with \\ \vspace{0.2cm} \centering Travis Whyte, Eric Gregory, Stefan Krieg, Giovanni Pederiva, Simon Schlepphorst}
 \institute[HISKP]{HISKP \& FZJ}
 \titlegraphic{\roundbox{\includegraphics[height=2.4cm]{graphics/uni_bonn_hiskp_FZJ_numeriqs_ETMC}}}
 \date[ETMC meeting 2025]{\small ETMC meeting 2025, 28.08.2025}
@@ -83,72 +83,263 @@
 %   Test
 % \end{frame}
 
-\begin{frame}{Overview}
+\begin{frame}{Motivation}
   \begin{itemize}
-    \item Introduction to Kokkos
-    \item Kronos with Kokkos
-    \item Performance benchmarks
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{This is the second slide}{with a subtitle}
+    \item Lattice QCD code for the next generation of exascale clusters
+  \end{itemize} 
+  \vspace{0.5cm}
+  Key features: \\
   \begin{itemize}
-    \item Just
-    \item some
-    \item bullets
+    \item Performance portable : single architecture agnostic codebase
+    \item Easy to use : reduce entry barrier for new users
   \end{itemize}
+
+
+  AS: Bartek please make this slide more interesting
 \end{frame}
 
-\begin{frame}{This is the third slide}
-A slide with two columns, one without and one with a block
-\begin{columns}
-  \column{0.4\textwidth}
+\begin{frame}{Kokkos}
+  The Kokkos C++ Performance Portability Ecosystem is a production
+  level solution for writing modern C++ applications in a hardware agnostic way.\\
+  
+  \begin{bkblock}{Supported HPC architectures:}
     \begin{itemize}
-      \item item1
-      \item item2
+      \item CUDA
+      \item HIP
+      \item SYCL
+      \item HPX
+      \item OpenMP
     \end{itemize}
-  \column{0.6\textwidth}
-  \begin{block}{never forget the title, {\tiny even if you it leave empty!} }
-    \begin{itemize}
-      \item{Maybe we have a reference for this? \\ \hfill \textcolor{blue}{\footnotesize [Some, Really, Cool, People, Major Journal, (19xx)]}}
-      \vspace{0.2cm}
-      \item{A comment to the point above.}
-    \end{itemize}
-  \end{block}
-
-\end{columns}
-\end{frame}
-
-\begin{frame}{This is the fourth slide}
-  \begin{bkblock}{This is a bkblock}
-    And some content for this block.
   \end{bkblock}
-  \begin{bkalertblock}{This is a bkalertblock}
-    And some content for this block.
-  \end{bkalertblock}
-  \begin{bkexampleblock}{This is a bkexampleblock}
-    And some content for this block.
-  \end{bkexampleblock}
+
+  Based on concepts of:
+  \begin{itemize}
+    \item execution : execution space, execution pattern, execution policy
+    \item memory: memory space, memory layout, memory trait
+  \end{itemize}
 \end{frame}
 
-\begin{frame}[fragile]{Some code goes a long way}
-  \begin{columns}
-    \column{0.6\linewidth}
-      \begin{minted}{c++}
-#include <stdio.h>
-#include <omp.h>
+\begin{frame}[fragile]{Kokkos : Memory}{Views}
+  \begin{minted}{c++}
+template <class DataType [, class LayoutType] [, class MemorySpace] [, class MemoryTraits]>
+class View;
+  \end{minted}
+  \begin{itemize}
+    \item \verb|DataType| : defines the fundamental scalar type of the \verb|View| and its dimensionality
+    \item \verb|LayoutType| : mapping of the indices onto the underlying 1D memory storage (\verb|LayoutRight|, \verb|LayoutLeft|)
+    \item \verb|MemorySpace| : storage location of the view (device/host, related to the execution space)
+    \item \verb|MemoryTraits| : access properties (\verb|Unmanaged|, \verb|RandomAccess|, ...)
+  \end{itemize}
 
-int main(void){
-  printf("Hello from the main thread.\n");
-#pragma omp parallel
-  printf("Hello from thread %d of %d.\n",
-         omp_get_thread_num(), 
-         omp_get_num_threads());
-  printf("Hello from main thread.\n");
-}
+  example:
+  \begin{minted}{c++}
+# default layout of the execution space
+using ViewLayout = Kokkos::DefaultExecutionSpace::array_layout;
+# memory space of the execution space
+using ViewSpace  = Kokkos::DefaultExecutionSpace::memory_space;
+# a 2D view of ints with 2 dynamic extents
+Kokkos::View<int**, ViewLayout, ViewSpace> a("a", 10, 12);
+# a 3D view of doubles with 1 dynamic and 2 compiled extents
+Kokkos::View<double*[4][3], ViewLayout, ViewSpace> b("b", 16);
+  \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Kokkos : Execution}{Policy}
+  Kokkos abstracts the execution policy via
+
+  \begin{columns}
+    \column{0.4\textwidth}
+      \begin{block}{RangePolicy}
+        defines an execution policy for a 1D iteration space
+      \end{block}
+      \begin{minted}{c++}
+Kokkos::RangePolicy(
+  execution_space, 
+  begin, end, 
+  chunk_size);
       \end{minted}
-    \column{0.4\linewidth}
-      This describes what the code actually does!
+    \column{0.4\textwidth}
+      \begin{block}{MDRangePolcy}
+        defines an execution policy for a multidimensional iteration space
+      \end{block}
+      \begin{minted}{c++}
+Kokkos::MDRangePolicy<
+  Kokkos::Rank<N>>(
+    execution_space, 
+    begin, end, 
+    tiling);
+  \end{minted}
+  \end{columns}
+
+%   \begin{itemize}
+%     \item \verb|RangePolicy| : defines an execution policy for a 1D iteration space
+%   \end{itemize}
+
+%   \begin{minted}{c++}
+% Kokkos::RangePolicy(execution_space, begin, end, chunk_size);
+%   \end{minted}
+
+%   \begin{itemize}
+%     \item \verb|MDRangePolcy| : defines an execution policy for a multidimensional iteration space
+%   \end{itemize}
+
+%   \begin{minted}{c++}
+% Kokkos::MDRangePolicy<Kokkos::Rank<N>>(execution_space, begin, end, tiling);
+%   \end{minted}
+  
+  \begin{bkblock}{Parameters:}
+    \begin{itemize}
+      \item The iteration space starts at \verb|begin| and goes to \verb|end| with open interval.
+      \item \verb|Rank<N>| determines the dimensionality of the multidimensional iteration space.
+      \item The block sizes are controlled by \verb|chunk_size| and \verb|tiling|.
+    \end{itemize}
+  \end{bkblock}
+\end{frame}
+
+\begin{frame}[fragile]{Kokkos : Execution}{Parallel Dispatches}
+  Kokkos executes kernels via the parallel dispatches
+
+  \begin{itemize}
+    \item \verb|parallel_for| : implements a “for loop” with independent iterations.
+    \item \verb|parallel_reduce| : implements a reduction.
+    \item \verb|parallel_scan| : implements a prefix scan.
+  \end{itemize}
+
+  \begin{columns}
+    \column{0.45\textwidth}
+      parallel\_for:
+      \begin{minted}{c++}
+template<
+  class ExecPolicy, 
+  class FunctorType>
+Kokkos::parallel_for(
+  const std::string &name, 
+  const ExecPolicy &policy, 
+  const FunctorType &functor);
+      \end{minted}
+    \column{0.45\textwidth}
+    parallel\_reduce:
+    \begin{minted}{c++}
+template <
+  class ExecPolicy, 
+  class FunctorType, 
+  class... ReducerArgument>
+Kokkos::parallel_reduce(
+  const std::string& name,
+  const ExecPolicy& policy,
+  const FunctorType& functor,
+  const ReducerArgument&... reducer);
+    \end{minted}
+  \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{A simple kernel with Kokkos}{parallel\_for}
+  \begin{columns}
+    \column{0.55\textwidth}
+      \begin{minted}{c++}
+const int N = 16;
+Kokkos::View<double*> a("a", N);
+Kokkos::deep_copy(a, 2.0);
+Kokkos::View<double*> b("b", N);
+Kokkos::deep_copy(b, 3.0);
+Kokkos::View<double*> c("c", N);
+auto policy = Kokkos::RangePolicy(0, N);
+Kokkos::parallel_for(
+  "add",
+  policy,
+  KOKKOS_LAMBDA(int i) {
+    c(i) = a(i) + b(i)
+  }
+);
+Kokkos::fence();
+      \end{minted}
+    \column{0.4\textwidth}
+      \begin{block}{c = a + b}
+        \begin{itemize}
+          \item initialize the 1D views
+          \item \verb|deep_copy| copies the single scalar value to every site in the view
+          \item Kokkos views are accessed via \verb|operator()(indices...)|
+          \item the functor can be a lambda
+          \item \verb|fence()| creates a barrier in the execution space
+        \end{itemize}
+      \end{block}
+  \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{A simple kernel with Kokkos}{parallel\_reduce}
+  \begin{columns}
+    \column{0.55\textwidth}
+      \begin{minted}{c++}
+const int N1 = 16;
+const int N2 = 12;
+Kokkos::View<double**> a("a", N1, N2);
+Kokkos::deep_copy(a, 5.0);
+double sum = 0;
+auto policy = Kokkos::MDRangePolicy<
+                Kokkos::Rank<2>>(
+                  {0, 0}, {N1, N2}
+                );
+Kokkos::parallel_reduce(
+  "reduce_sum",
+  policy,
+  KOKKOS_LAMBDA(int i, int j, 
+    double &lsum) {
+      lsum += a(i, j);
+    },
+  Kokkos::Sum<double>(sum)
+);
+Kokkos::fence();
+      \end{minted}
+    \column{0.4\textwidth}
+      \begin{block}{sum over a 2D view}
+        \begin{itemize}
+          \item similar to \verb|parallel_for|
+          \item needs a local reduction variable along with the policy iteration indices
+        \end{itemize}
+      \end{block}
+    \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{A more general kernel using functors}
+  A more generalized addition kernel for different dimensionality and site types
+  \begin{columns}
+    \column{0.6\textwidth}
+      \begin{minted}{c++}
+template <typename view_t>
+struct add {
+  const view_t m_a;
+  const view_t m_b;
+  view_t m_c;
+
+  add(view_t &c, const view_t &a, const view_t &b) :
+    m_a(a), m_b(b), m_c(c) {}
+  
+  template <typename... IndexTypes>
+  KOKKOS_INLINE_FUNCTION
+  void operator()(IndexTypes... indices) const noexcept
+  {
+    m_c(indices...) = m_a(indices...) + m_b(indices...)
+  }
+};
+      \end{minted}
+    \column{0.38\textwidth}
+      \begin{minted}{c++}
+const int N = 12;
+using view_t = Kokkos::View<int*>;
+view_t a("a", N);
+view_t b("b", N);
+view_t c("c", N);
+auto add_func = add(c, a, b);
+auto policy = Kokkos::RangePolicy(
+                0, N
+              );
+Kokkos::parallel_for(
+  "add_functor",
+  policy,
+  add_func
+);
+Kokkos::fence();
+      \end{minted}
   \end{columns}
 \end{frame}
 
