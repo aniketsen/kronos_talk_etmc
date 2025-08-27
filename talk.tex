@@ -85,17 +85,22 @@
 
 \begin{frame}{Motivation}
   \begin{itemize}
-    \item Lattice QCD code for the next generation of exascale clusters
+    \item Lattice QCD code for the current generation of exascale supercomputers
   \end{itemize} 
   \vspace{0.5cm}
   Key features: \\
   \begin{itemize}
-    \item Performance portable : single architecture agnostic codebase
-    \item Easy to use : reduce entry barrier for new users
+    \item Performance-portable : single architecture-agnostic codebase
+    \vspace{0.6cm}
+    \item offer interface to QUDA (and potentially Grid) for solvers and other dominant components
+    \vspace{0.6cm}
+    \item ``Easy to use''
+    \begin{itemize}
+      \item technical basis less complicated than Grid or QUDA (still partly complex though)
+      \vspace{0.6cm}
+      \item reduce entry barrier for new end users of the library
+    \end{itemize}
   \end{itemize}
-
-
-  AS: Bartek please make this slide more interesting
 \end{frame}
 
 \begin{frame}{CPUs vs GPUs}
@@ -305,10 +310,13 @@
 \end{frame}
 
 \begin{frame}[fragile]{Kokkos : Memory}{Views}
+  \vspace{0.2cm}
+  A \textbf{View} is a kind of smart pointer to a chunk of memory allocated in some \textbf{memory space}.
   \begin{minted}{c++}
 template <class DataType [, class LayoutType] [, class MemorySpace] [, class MemoryTraits]>
 class View;
   \end{minted}
+  \vspace{-0.4cm}
   \begin{itemize}
     \item \verb|DataType| : defines the fundamental scalar type of the \verb|View| and its dimensionality
     \item \verb|LayoutType| : mapping of the indices onto the underlying 1D memory storage (\verb|LayoutRight|, \verb|LayoutLeft|)
@@ -426,9 +434,13 @@ Kokkos::fence();
       \begin{block}{c = a + b}
         \begin{itemize}
           \item initialize the 1D views
+          \vspace{0.3cm}
           \item \verb|deep_copy| copies the single scalar value to every site in the view
+          \vspace{0.3cm}
           \item Kokkos views are accessed via \verb|operator()(indices...)|
+          \vspace{0.3cm}
           \item the functor can be a lambda
+          \vspace{0.3cm}
           \item \verb|fence()| creates a barrier in the execution space
         \end{itemize}
       \end{block}
@@ -460,9 +472,23 @@ Kokkos::parallel_reduce(
 Kokkos::fence();
       \end{minted}
     \column{0.4\textwidth}
+        \begin{block}{2D View}
+          Logical index order \mintinline{c++}{a(i,j)} transparently maps to (in memory)
+            \begin{itemize}
+              \item \mintinline{c++}{i} running fastest on GPU
+              \vspace{0.3cm}
+              \item \mintinline{c++}{j} running fastest on CPU 
+              \vspace{0.3cm}
+              \begin{itemize}
+                \item \textbf{Performance-portability!}
+              \end{itemize}
+            \end{itemize}
+        \end{block}
+      \vspace{0.4cm}
       \begin{block}{sum over a 2D view}
         \begin{itemize}
           \item similar to \verb|parallel_for|
+          \vspace{0.3cm}
           \item needs a local reduction variable along with the policy iteration indices
         \end{itemize}
       \end{block}
@@ -603,6 +629,31 @@ using GaugeField4D = VectorField<ColourMatrix<RT, Nc>, cplx_t<RT> *[4][Nc][Nc], 
 
 \end{frame}
 
+\begin{frame}[fragile]{Writing simple kernels}
+  We would like to be able to write something like:
+  \begin{minted}{c++}
+  spinor_t tmp = U(i,0) * psi(i+d0);
+  tmp += U(i-d0,0).dagger() * psi(i-d0);
+  tmp += U(i,1) * psi(i+d1);
+  ...
+  \end{minted}
+  \vspace{-0.3cm}
+  Or for a plaquette:
+  \begin{minted}{c++}
+  su3_t tmp = U(i,0) * U(i+d0,1);
+  tmp = tmp * U(i+d1,0).dagger() * U(i,1).dagger();
+  ...
+  \end{minted}
+  or similar constructions for different kinds of non-local gauge link or gauge-spinor products.
+
+  \begin{itemize}
+  \vspace{0.4cm}
+  \item Views of structs, e.g. \mintinline{c++}{su3_t arr[mu][i]}, \mintinline{c++}{spinor_t arr[i]} (with operator overloads on \mintinline{c++}{su3_t} and \mintinline{c++}{spinor_t}) would break coalescing on GPU. 
+  \vspace{0.3cm}
+    \item Need a mechanism to combine flexible storage order and comfortable arithmetic operator overloading.
+  \end{itemize}
+\end{frame}
+
 \begin{frame}[fragile]{Kronos: Site reference}
   
   \begin{bkalertblock}{How do we extract the site type structure from the View without copies?}
@@ -621,14 +672,9 @@ class SiteGaugeLink {
   const gauge_t &m_f;
 }
   \end{minted}
-
   which accesses the $SU(N)$ matrix for the gauge field \verb|m_f| at lattice index
-  \verb|m_i| and vector index \verb|m_mu|\\
-
-  Accordingly, the accessor \verb|elem| takes the form
-
+  \verb|m_i| and vector index \verb|m_mu| with an accessor:
   \begin{minted}{c++}
-KOKKOS_FORCEINLINE_FUNCTION
 auto &
 elem(idx_t c1, idx_t c2) const noexcept
 {
