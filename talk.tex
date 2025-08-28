@@ -201,7 +201,7 @@
         \item<1-> $\psi^{\sigma b}(x) \rightarrow$ \mintinline{c++}{complex[x][sigma][b]}
         \vspace{0.2cm}
         \begin{itemize}
-          \item Consecutive lattice sites $x$ separated by e.g. \mintinline{c++}{4 * sizeof(su3)} or \mintinline{c++}{sizeof(spinor)} in memory.
+          \item<2-> Consecutive lattice sites $x$ separated by e.g. \mintinline{c++}{4 * sizeof(su3)} or \mintinline{c++}{sizeof(spinor)} in memory.
         \end{itemize}
         \vspace{0.6cm}
         \item<3-> \emph{Array of Struct} layout works well on \textbf{CPU} due to cache hierarchy and small SIMD loss factor.
@@ -285,7 +285,7 @@
   int end[4] = {N1,N2,N3,N4};
   parallel_for(begin,end,stencil);
       \end{minted}
-      \vspace{-0.5cm}
+      \vspace{0.5cm}
       \begin{itemize}
         \item Loop over the 8 directions: surface kernel launched as soon as respective comms is completed.
       \end{itemize}
