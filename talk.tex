@@ -28,6 +28,11 @@
 \usepackage[detect-none]{siunitx}
 \sisetup{range-phrase = \text{--}}
 
+
+\usepackage{tikz}
+\usepackage{adjustbox}
+\usepackage{circuitikz}
+
 \include{commands}
 
 %compact itemize, perfect for talks
@@ -65,7 +70,7 @@
 \graphicspath{{graphics/}}
 
 \title[Kronos]{Kronos : A lattice QCD library accelerated with Kokkos}
-\author[A. Sen, B. Kostrzewa]{Aniket Sen, Bartosz Kostrzewa  \\ \vspace{0.2cm} in collaboration with \\ \vspace{0.2cm} \centering Travis Whyte, Eric Gregory, Stefan Krieg, Giovanni Pederiva, Simon Schlepphorst}
+\author[A. Sen, B. Kostrzewa]{Aniket Sen, Bartosz Kostrzewa  \\ \vspace{0.2cm} in collaboration with \\ \vspace{0.2cm} \centering Travis Whyte, Eric B. Gregory, Stefan Krieg, Giovanni Pederiva, Simon Schlepphorst, Estela Suarez}
 \institute[HISKP]{HISKP \& FZJ}
 \titlegraphic{\roundbox{\includegraphics[height=2.4cm]{graphics/uni_bonn_hiskp_FZJ_numeriqs_ETMC}}}
 \date[ETMC meeting 2025]{\small ETMC meeting 2025, 28.08.2025}
@@ -769,36 +774,143 @@ void add_spinor(spinor_t &c, const spinor_t &a, const spinor_t &b) {
 
 \end{frame}
 
-\begin{frame}{Benchmark: Linear algebra kernels}{cpu}
+\begin{frame}[fragile]{Expression Templates}
+
+  \begin{columns}
+    \column{0.5\textwidth}
+      \begin{minted}{c++}
+A = a.sitevector(i);
+B = b.site(i);
+C = c.site(i);
+S = s.site(i);
+
+S = A * B + C;
+      \end{minted}
+    \column{0.45\textwidth}
+      \begin{itemize}
+        \item the evaluation of the right hand side creates temporary objects
+        \item one for the product \verb|A * B| 
+        \item and one for the sum \verb|A * B + C|
+        \item results in more memory traffic than necessary
+      \end{itemize}
+  \end{columns}
+
+  \begin{bkalertblock}{Solution: Expression Templates}
+    \begin{itemize}
+      \item delay evaluation of the right hand side until assignment
+      \item evaluate the whole expression in a single loop
+      \item avoid temporaries and extra memory traffic
+    \end{itemize}
+  \end{bkalertblock}
+
+  \begin{minted}{c++}
+template <typename E1, typename E2>
+inline AddSpinor<E1, E2> operator+( const Expression <E1>& a , const Expression <E2>& b ) {
+  return AddSpinor<E1, E2>( a.self() , b.self() );
+}
+  \end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Expression Templates}{current status}
+
+  Expression templates for view level operations have been tested\\
+
+\begin{figure}[!ht]
+  \centering
+  \resizebox{0.5\textwidth}{!}{
+  \begin{circuitikz}
+  \tikzstyle{every node}=[font=\Huge]
+  \draw [ fill={rgb,255:red,211; green,211; blue,211} , line width=1pt , rounded corners = 15.6] (0.5,5.25) rectangle (26.75,-9.75);
+  \node [font=\Huge] at (13.75,3) {=};
+  \draw [ fill={rgb,255:red,86; green,180; blue,233} , line width=1pt , rounded corners = 15.6] (15.5,3.75) rectangle (24.5,2);
+  \node [font=\Huge] at (20,3) {expr.operator()};
+  \draw [ fill={rgb,255:red,233; green,139; blue,86} , line width=1pt , rounded corners = 15.6] (3,3.75) rectangle (12,2);
+  \node [font=\Huge] at (7.5,3) {out.operator()};
+  \draw [ fill={rgb,255:red,86; green,180; blue,233} , line width=1pt , rounded corners = 15.6] (15.25,-2) rectangle (24.5,-8.5);
+  \draw [ fill={rgb,255:red,0; green,158; blue,115} , line width=1pt , rounded corners = 15.6] (15.5,-2.25) rectangle (24.25,-4.5);
+  \draw [ fill={rgb,255:red,0; green,158; blue,115} , line width=1pt , rounded corners = 15.6] (15.5,-5.75) rectangle (24.25,-8);
+  \node [font=\Huge] at (20,-6.75) {chi.operator()};
+  \node [font=\Huge] at (19.75,-3.25) {phi.operator()};
+  \node [font=\Huge] at (19.75,-5.25) {\textbf{+}};
+  \draw [ fill={rgb,255:red,86; green,180; blue,233} , line width=1pt , rounded corners = 15.6] (2.75,-2) rectangle (12,-8.5);
+  \draw [ fill={rgb,255:red,0; green,158; blue,115} , line width=1pt , rounded corners = 15.6] (3,-2.25) rectangle (11.75,-4.5);
+  \draw [ fill={rgb,255:red,0; green,158; blue,115} , line width=1pt , rounded corners = 15.6] (3,-5.75) rectangle (11.75,-8);
+  \draw [ fill={rgb,255:red,233; green,139; blue,86} , line width=1pt , rounded corners = 15.6] (3.25,-2.5) rectangle (11.5,-4.25);
+  \draw [ fill={rgb,255:red,233; green,139; blue,86} , line width=1pt , rounded corners = 15.6] (3.25,-6) rectangle (11.5,-7.75);
+  \node [font=\Huge] at (7.5,-3.25) {phi.view.operator()};
+  \node [font=\Huge] at (7.25,-6.75) {chi.view.operator()};
+  \node [font=\Huge] at (7.25,-5.25) {\textbf{+}};
+  \draw [line width=1pt, ->, >=Stealth, dashed] (19.75,2) -- (19.75,-1.75);
+  \draw [line width=1pt, ->, >=Stealth, dashed] (17.25,-3.25) -- (10.75,-3.25);
+  \draw [line width=1pt, ->, >=Stealth, dashed] (17.5,-6.75) -- (10.75,-6.75);
+  \draw [line width=1pt, ->, >=Stealth, dashed] (7.5,-2) -- (7.5,1.75);
+  \node [font=\Huge] at (21.25,0.25) {returns};
+  \node [font=\Huge] at (13.5,-2.75) {returns};
+  \node [font=\Huge] at (13.5,-6.25) {returns};
+  \node [font=\Huge] at (9.5,0.25) {assigns to};
+  %\node [font=\Huge] at (4.5,4.5) {\underline{AssignField.operator()}};
+  \end{circuitikz}
+  }
+  % \caption{\label{fig::assignment_diagram}Control flow diagram of the evaluation and the assignment of the expression representing the addition of two \texttt{Fields} in the functor \texttt{AssignField}.}
+\end{figure}
+
+
+  {\footnotesize{T.~Whyte, E.B.~Gregory, S.~Krieg, \textbf{BK}, L.~Meyer, G.~Pederiva, S.~Schlepphorst, \textbf{AS}, E.~Suarez \emph{Expression Templates with Kokkos for Lattice QCD}, under review.}}\\
+
+  expression templates for site level and field level operation will be soon added to Kronos\\
+
+\end{frame}
+
+\begin{frame}{Benchmark: Expression Templates}{Juwels Booster - cpu}
 
   \begin{itemize}
-    \item Benchmark on a single node of the Juwels Booster
-    \item AMD EPYC 7402 cpu, 48 threads, no SMT
-    \item compiled with GCC 13.3
+    \item dual-socket AMD EPYC Rome 7402 system with 48 threads without SMT
   \end{itemize}
 
   \begin{columns}
     \column{0.5\textwidth}
-      \includegraphics[width=\textwidth]{figs/comparison_grid_epyc.pdf}
+      \includegraphics[width=\textwidth]{figs/cpu_mem_bw_mixed.pdf}
     \column{0.5\textwidth}
-      \includegraphics[width=\textwidth]{figs/comparison_grid_epyc_zoomed.pdf}
+      \includegraphics[width=\textwidth]{figs/cpu_mem_bw_mixed_zoom.pdf}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Benchmark: Linear algebra kernels}{gpu}
+\begin{frame}{Benchmark: Expression Templates}{Marvin - cpu}
 
   \begin{itemize}
-    \item Benchmark on a single gpu in a single node of the Juwels Booster
-    \item NVIDIA A100 40 GB
-    \item compiled with NVCC 12.6
+    \item Intel Xeon Sapphire Rapids 8468 system with 96 threads and no SMT
   \end{itemize}
 
   \begin{columns}
     \column{0.5\textwidth}
-      \includegraphics[width=\textwidth]{figs/comparison_grid_a100.pdf}
+      \includegraphics[width=\textwidth]{figs/marvin_results.pdf}
     \column{0.5\textwidth}
-      \includegraphics[width=\textwidth]{figs/comparison_grid_a100_zoomed.pdf}
+      \includegraphics[width=\textwidth]{figs/marvin_results_zoom.pdf}
   \end{columns}
+\end{frame}
+
+\begin{frame}{Benchmark: Expression Templates}{gpus}
+
+  \begin{columns}
+    \column{0.5\textwidth}
+      Juwels Booster - NVIDIA A100 40 GB
+      \includegraphics[width=\textwidth]{figs/gpu_mem_bw_mixed_policy.pdf}
+    \column{0.5\textwidth}
+      LUMI - AMD MI250X
+      \includegraphics[width=\textwidth]{figs/lumi_results.pdf}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Kronos: some more kernels}
+
+  \begin{columns}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/sun_spinor_benchmark_epyc.pdf}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth]{figs/sun_spinor_benchmark_a100.pdf}
+  \end{columns}
+
 \end{frame}
 
 \begin{frame}{Towards Actual Physics}{current status}
@@ -890,20 +1002,35 @@ sum += gamma_val<RT>(gamma_type, alpha) *
 
 \end{frame}
 
-\begin{frame}{some more benchmarks}
+\begin{frame}{Outlook}
+  \begin{itemize}
+    \item intial benchmarks look very promising
+    \vspace{0.5cm}
+    \item somewhat working pipeling for doing physics
+    \vspace{0.5cm}
+    \item Kronos v0.1.0 will be released soon (hopefully)
+  \end{itemize}
 
-  \begin{columns}
-    \column{0.5\textwidth}
-      \includegraphics[width=\textwidth]{figs/sun_spinor_benchmark_epyc.pdf}
-    \column{0.5\textwidth}
-      \includegraphics[width=\textwidth]{figs/sun_spinor_benchmark_a100.pdf}
-  \end{columns}
+  \vspace{1cm}
 
+  \centering
+  Thank you for your attention\\
+  
 \end{frame}
 
-\begin{frame}{Outlook}
+\begin{frame}{Backup: A first correlator}
 
-  
+  \begin{itemize}
+    \item A first pion correlator out of Kronos (QUDA doing a lot of the heavy lifting)
+    \item cA211.53.24 ensemble from ETMC
+    \item take with a huge grain of salt, has not been properly cross-checked yet
+  \end{itemize}
+  \begin{columns}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth,page=1]{figs/meson_2pt_analyze_cA211.53.24_mu_0.0053_gam_G5.pdf}
+    \column{0.5\textwidth}
+      \includegraphics[width=\textwidth,page=2]{figs/meson_2pt_analyze_cA211.53.24_mu_0.0053_gam_G5.pdf}
+  \end{columns}
 \end{frame}
 
 \end{document}
